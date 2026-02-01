@@ -13,17 +13,6 @@
     * Code runs in a Web Worker on an opaque origin: no access to the host page's storage, cookies, or DOM.
     * Network access is blocked by default using a strict [Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP).
 
-## How it works
-
-slopjail creates a hidden `<iframe>` with an opaque origin and a restrictive CSP. A small relay script inside the iframe spawns a Web Worker and bridges a `MessagePort` back to the host for RPC. Untrusted code runs in the Worker, completely isolated from the main page. Any functions you provide as globals are replaced with RPC proxies — when the sandbox calls them, they execute in the host context and the result is sent back.
-
-```
-Host (main thread)
- └─ iframe (sandbox="allow-scripts", opaque origin, strict CSP)
-     └─ Worker (runs untrusted code)
-         └─ RPC proxy functions → call back to host via MessagePort
-```
-
 ## Quickstart
 
 Install:
@@ -49,6 +38,17 @@ try {
 } finally {
   sandbox.dispose()
 }
+```
+
+## How it works
+
+slopjail creates a hidden `<iframe>` with an opaque origin and a restrictive CSP. A small relay script inside the iframe spawns a Web Worker and bridges a `MessagePort` back to the host for RPC. Untrusted code runs in the Worker, completely isolated from the main page. Any functions you provide as globals are replaced with RPC proxies — when the sandbox calls them, they execute in the host context and the result is sent back.
+
+```
+Host (main thread)
+ └─ iframe (sandbox="allow-scripts", opaque origin, strict CSP)
+     └─ Worker (runs untrusted code)
+         └─ RPC proxy functions → call back to host via MessagePort
 ```
 
 ## Advanced
