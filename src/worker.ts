@@ -18,6 +18,32 @@ const hostClient = createWorkerClient<HostService>(self)
 
 const AsyncFunction = (async () => {}).constructor as FunctionConstructor
 
+// Block certain APIs that could be used for fingerprinting.
+// We must also delete getters from the prototype chain, otherwise sandboxed
+// code can recover them via Object.getOwnPropertyDescriptor on the prototype.
+const blocked = [
+  'name',
+  'navigator',
+  'location',
+  'requestAnimationFrame',
+
+  // We need to block nested Worker creation since a child Worker would get a
+  // fresh global scope with unblocked APIs.
+  'Worker',
+  'SharedWorker',
+]
+for (const prop of blocked) {
+  let proto = globalThis
+  while (proto) {
+    if (Object.hasOwn(proto, prop)) {
+      Object.defineProperty(proto, prop, {
+        value: undefined,
+      })
+    }
+    proto = Object.getPrototypeOf(proto)
+  }
+}
+
 createWorkerServer<GuestService>(self, {
   setGlobals({ constants, methods }) {
     function injectMethods(

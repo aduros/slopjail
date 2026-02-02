@@ -46,8 +46,6 @@ export type CreateSandboxOptions = {
 
   /**
    * An optional name for the sandbox to aid in debugging. Used as the iframe's and worker's name.
-   *
-   * *WARNING*: This name is exposed to untrusted code, do not put sensitive information here.
    */
   name?: string
 }

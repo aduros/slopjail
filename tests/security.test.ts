@@ -248,6 +248,203 @@ describe('iframe sandbox attribute', () => {
   })
 })
 
+describe('fingerprinting prevention', () => {
+  test('navigator is undefined', async () => {
+    sandbox = await createSandbox()
+    expect(await sandbox.run('return typeof navigator')).toBe('undefined')
+  })
+
+  test('cannot read navigator.userAgent', async () => {
+    sandbox = await createSandbox()
+    await expect(sandbox.run('return navigator.userAgent')).rejects.toThrow()
+  })
+
+  test('location is undefined', async () => {
+    sandbox = await createSandbox()
+    expect(await sandbox.run('return typeof location')).toBe('undefined')
+  })
+
+  test('cannot read location.href', async () => {
+    sandbox = await createSandbox()
+    await expect(sandbox.run('return location.href')).rejects.toThrow()
+  })
+
+  test('requestAnimationFrame is undefined', async () => {
+    sandbox = await createSandbox()
+    expect(await sandbox.run('return typeof requestAnimationFrame')).toBe(
+      'undefined',
+    )
+  })
+
+  test('Worker name is undefined', async () => {
+    sandbox = await createSandbox({ name: 'secret-sandbox' })
+    expect(await sandbox.run('return typeof name')).toBe('undefined')
+    expect(await sandbox.run('return self.name')).toBeUndefined()
+    expect(await sandbox.run('return name')).toBeUndefined()
+  })
+
+  test('cannot recover navigator via prototype chain', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      let proto = Object.getPrototypeOf(self)
+      while (proto) {
+        const desc = Object.getOwnPropertyDescriptor(proto, 'navigator')
+        if (desc) {
+          if (desc.get) return desc.get.call(self)
+          return desc.value
+        }
+        proto = Object.getPrototypeOf(proto)
+      }
+      return undefined
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover navigator via __proto__', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      try {
+        return self.__proto__.__proto__.navigator
+      } catch { return undefined }
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover location via prototype chain', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      let proto = Object.getPrototypeOf(self)
+      while (proto) {
+        const desc = Object.getOwnPropertyDescriptor(proto, 'location')
+        if (desc) {
+          if (desc.get) return desc.get.call(self)
+          return desc.value
+        }
+        proto = Object.getPrototypeOf(proto)
+      }
+      return undefined
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover name via prototype chain', async () => {
+    sandbox = await createSandbox({ name: 'secret-sandbox' })
+    const result = await sandbox.run(`
+      let proto = Object.getPrototypeOf(self)
+      while (proto) {
+        const desc = Object.getOwnPropertyDescriptor(proto, 'name')
+        if (desc) {
+          if (desc.get) return desc.get.call(self)
+          return desc.value
+        }
+        proto = Object.getPrototypeOf(proto)
+      }
+      return undefined
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover navigator via constructor prototype', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      // Try accessing via the named global scope constructors
+      for (const name of ['DedicatedWorkerGlobalScope', 'WorkerGlobalScope']) {
+        const ctor = globalThis[name]
+        if (ctor?.prototype) {
+          const desc = Object.getOwnPropertyDescriptor(ctor.prototype, 'navigator')
+          if (desc?.get) return desc.get.call(self)
+          if (desc?.value) return desc.value
+        }
+      }
+      return undefined
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover navigator via Reflect.get on prototype', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      let proto = Object.getPrototypeOf(self)
+      while (proto) {
+        try {
+          const val = Reflect.get(proto, 'navigator', self)
+          if (val !== undefined) return val
+        } catch {}
+        proto = Object.getPrototypeOf(proto)
+      }
+      return undefined
+    `)
+    expect(result).toBeUndefined()
+  })
+
+  test('cannot recover navigator via nested data: Worker', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      try {
+        const code = 'postMessage(typeof navigator !== "undefined" && navigator.userAgent ? navigator.userAgent : "__blocked__")'
+        const w = new Worker('data:,' + encodeURIComponent(code))
+        return await new Promise((resolve, reject) => {
+          w.onmessage = (e) => resolve(e.data)
+          w.onerror = () => resolve('__blocked__')
+          setTimeout(() => resolve('__blocked__'), 3000)
+        })
+      } catch {
+        return '__blocked__'
+      }
+    `)
+    expect(result).toBe('__blocked__')
+  })
+})
+
+describe('Worker constructor recovery attempts', () => {
+  test('cannot recover Worker via prototype chain', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      // Walk the prototype chain looking for a Worker reference
+      let proto = Object.getPrototypeOf(self)
+      while (proto) {
+        const desc = Object.getOwnPropertyDescriptor(proto, 'Worker')
+        if (desc?.value) return 'found:' + typeof desc.value
+        if (desc?.get) return 'found:getter'
+        proto = Object.getPrototypeOf(proto)
+      }
+      return 'not_found'
+    `)
+    expect(result).toBe('not_found')
+  })
+
+  test('cannot recover Worker via globalThis constructor', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      // Try to find Worker on DedicatedWorkerGlobalScope or its prototypes
+      const names = ['DedicatedWorkerGlobalScope', 'WorkerGlobalScope']
+      for (const n of names) {
+        const ctor = globalThis[n]
+        if (ctor && ctor.Worker) return 'found:' + n + '.Worker'
+        if (ctor?.prototype?.Worker) return 'found:' + n + '.prototype.Worker'
+      }
+      // Try self.constructor
+      if (self.constructor?.Worker) return 'found:self.constructor.Worker'
+      return 'not_found'
+    `)
+    expect(result).toBe('not_found')
+  })
+
+  test('Worker and SharedWorker are not in globalThis', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run(`
+      return {
+        Worker: typeof globalThis.Worker,
+        SharedWorker: typeof globalThis.SharedWorker,
+      }
+    `)
+    expect(result).toEqual({
+      Worker: 'undefined',
+      SharedWorker: 'undefined',
+    })
+  })
+})
+
 describe('CSP injection resistance', () => {
   test('CSP with HTML special characters is safely escaped', async () => {
     // If escaping fails, the iframe would break or allow injected content

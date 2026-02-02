@@ -6,12 +6,13 @@
 
 ## Features
 
-- Tiny (~2 KB gzipped)
+- Tiny (~3 KB gzipped)
 - Simple API: `createSandbox()` → `run()` → `dispose()`.
 - Expose variables and functions for untrusted code to access.
 - Pretty good security:
     * Code runs in a Web Worker on an opaque origin: no access to the host page's storage, cookies, or DOM.
     * Network access is blocked by default using a strict [Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP).
+    * Disables APIs like `navigator` to resist device fingerprinting.
 
 ## Quickstart
 
@@ -99,16 +100,13 @@ await sandbox.run(`
 
 ### Naming sandboxes
 
-Give a sandbox a name for easier debugging.
+Give a sandbox a name for easier debugging:
 
 ```typescript
 const sandbox = await createSandbox({
   name: `ai-code-tool-${Date.now()}`,
 })
 ```
-
-> [!Warning]
-> The name is exposed to untrusted code. Do not put sensitive information here.
 
 ### Automatic disposal
 
