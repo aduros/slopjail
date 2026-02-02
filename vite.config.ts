@@ -1,3 +1,6 @@
+/// <reference types="vitest/config" />
+
+import { playwright } from '@vitest/browser-playwright'
 import {
   defineConfig,
   type Plugin,
@@ -50,4 +53,17 @@ export default defineConfig({
     },
   },
   plugins: [bundled(), dts({ include: ['src'] })],
+  test: {
+    browser: {
+      enabled: true,
+      headless: true,
+      screenshotFailures: false,
+      provider: playwright(),
+      instances: [
+        { browser: 'chromium' },
+        { browser: 'firefox' },
+        { browser: 'webkit' },
+      ],
+    },
+  },
 })
