@@ -1,2 +1,2 @@
-export type { CreateSandboxOptions, Sandbox } from './host'
+export type { CreateSandboxOptions, RunOptions, Sandbox } from './host'
 export { createSandbox } from './host'

@@ -51,6 +51,19 @@ export type CreateSandboxOptions = {
 }
 
 /**
+ * Options for {@link Sandbox.run}.
+ */
+export type RunOptions = {
+  /**
+   * Maximum time in milliseconds to wait for the code to finish. If the
+   * timeout elapses, the returned promise rejects with a timeout error.
+   *
+   * Defaults to `3000` (3 seconds).
+   */
+  timeout?: number
+}
+
+/**
  * A sandboxed execution environment.
  *
  * Code executed inside the sandbox runs in an isolated Web Worker hosted by a
@@ -66,9 +79,10 @@ export type Sandbox = {
    * `await` is supported. All globals provided at creation time are available.
    *
    * @param code - JavaScript source code to execute.
+   * @param options - Execution options.
    * @returns The return value of the executed code.
    */
-  run(code: string): Promise<unknown>
+  run(code: string, options?: RunOptions): Promise<unknown>
 
   /**
    * Destroy the sandbox, terminating its worker and removing the backing
@@ -182,30 +196,33 @@ export async function createSandbox(
   const guestClient = createMessagePortClient<GuestService>(port)
   await guestClient.call('setGlobals', { constants, methods })
 
-  let rejectDispose: (err: Error) => void
+  let disposeReject: (err: Error) => void
   const disposePromise = new Promise<never>((_, reject) => {
-    rejectDispose = reject
+    disposeReject = reject
   })
   disposePromise.catch(() => {}) // prevent unhandled rejection
 
-  const disposedError = () => new Error('Sandbox has been disposed')
-
-  let disposed = false
-
   const dispose = () => {
-    if (disposed) return
-    disposed = true
-    rejectDispose(disposedError())
+    disposeReject(new Error('Sandbox has been disposed'))
     port.close()
     iframe.remove()
   }
 
   return {
-    run(code) {
-      if (disposed) {
-        return Promise.reject(disposedError())
-      }
-      return Promise.race([guestClient.call('run', { code }), disposePromise])
+    run(code, options) {
+      let timer: ReturnType<typeof setTimeout>
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Execution timed out')),
+          options?.timeout ?? 3000,
+        )
+      })
+      timeoutPromise.catch(() => {}) // prevent unhandled rejection
+      return Promise.race([
+        guestClient.call('run', { code }),
+        disposePromise,
+        timeoutPromise,
+      ]).finally(() => clearTimeout(timer))
     },
     dispose,
     [Symbol.dispose]: dispose,

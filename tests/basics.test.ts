@@ -223,7 +223,33 @@ describe('lifecycle', () => {
 
   test('dispose during run rejects the pending promise', async () => {
     sandbox = await createSandbox()
-    const pending = sandbox.run('await new Promise(() => {})')
+    const pending = sandbox.run('await new Promise(() => {})', {
+      timeout: 10_000,
+    })
+    sandbox.dispose()
+    await expect(pending).rejects.toThrow('Sandbox has been disposed')
+  })
+})
+
+describe('timeout', () => {
+  test('rejects with timeout error when code exceeds the timeout', async () => {
+    sandbox = await createSandbox()
+    await expect(
+      sandbox.run('await new Promise(() => {})', { timeout: 50 }),
+    ).rejects.toThrow('Execution timed out')
+  })
+
+  test('does not reject when code finishes before the timeout', async () => {
+    sandbox = await createSandbox()
+    const result = await sandbox.run('return 42', { timeout: 5000 })
+    expect(result).toBe(42)
+  })
+
+  test('dispose during timed run rejects with disposed error', async () => {
+    sandbox = await createSandbox()
+    const pending = sandbox.run('await new Promise(() => {})', {
+      timeout: 5000,
+    })
     sandbox.dispose()
     await expect(pending).rejects.toThrow('Sandbox has been disposed')
   })

@@ -80,6 +80,15 @@ try {
 }
 ```
 
+### Timeouts
+
+`run()` enforces a 3-second execution timeout by default. If the code doesn't finish in time, the returned promise rejects with an error. You can override it per call:
+
+```typescript
+await sandbox.run(code, { timeout: 10_000 }) // 10 seconds
+```
+```
+
 ### Content-Security-Policy
 
 By default, the sandbox blocks all network access and resource loading:
@@ -173,24 +182,6 @@ try {
 }
 ```
 
-### How do I implement a timeout?
-
-Untrusted code can run forever, so setting a timeout is a good idea. Call `dispose()` to tear down the sandbox if `run()` doesn't resolve in time:
-
-```typescript
-const sandbox = await createSandbox()
-
-const timeout = new Promise((_, reject) =>
-  setTimeout(() => reject(new Error('Timed out')), 5000),
-)
-
-try {
-  await Promise.race([sandbox.run(code), timeout])
-} finally {
-  sandbox.dispose()
-}
-```
-
 ## API
 
 ### `createSandbox(opts): Promise<Sandbox>`
@@ -209,5 +200,11 @@ Create a new sandboxed execution environment.
 
 | Method | Description |
 |---|---|
-| `run(code: string): Promise<unknown>` | Execute JavaScript inside the sandbox. Supports top-level `await`. Returns the return value of the executed code. |
+| `run(code: string, options?): Promise<unknown>` | Execute JavaScript inside the sandbox. Supports top-level `await`. Returns the return value of the executed code. |
 | `dispose(): void` | Terminate the worker and clean up all resources. |
+
+**Run options:**
+
+| Option | Type | Description |
+|---|---|---|
+| `timeout` | `number` | Maximum time in milliseconds to wait before rejecting with a timeout error. Defaults to `3000`. |
