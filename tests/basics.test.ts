@@ -212,6 +212,21 @@ describe('lifecycle', () => {
     sandbox.dispose()
     sandbox.dispose()
   })
+
+  test('run after dispose rejects with an error', async () => {
+    sandbox = await createSandbox()
+    sandbox.dispose()
+    await expect(sandbox.run('return 1')).rejects.toThrow(
+      'Sandbox has been disposed',
+    )
+  })
+
+  test('dispose during run rejects the pending promise', async () => {
+    sandbox = await createSandbox()
+    const pending = sandbox.run('await new Promise(() => {})')
+    sandbox.dispose()
+    await expect(pending).rejects.toThrow('Sandbox has been disposed')
+  })
 })
 
 describe('options', () => {

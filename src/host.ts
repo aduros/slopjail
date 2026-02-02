@@ -182,14 +182,30 @@ export async function createSandbox(
   const guestClient = createMessagePortClient<GuestService>(port)
   await guestClient.call('setGlobals', { constants, methods })
 
+  let rejectDispose: (err: Error) => void
+  const disposePromise = new Promise<never>((_, reject) => {
+    rejectDispose = reject
+  })
+  disposePromise.catch(() => {}) // prevent unhandled rejection
+
+  const disposedError = () => new Error('Sandbox has been disposed')
+
+  let disposed = false
+
   const dispose = () => {
+    if (disposed) return
+    disposed = true
+    rejectDispose(disposedError())
     port.close()
     iframe.remove()
   }
 
   return {
     run(code) {
-      return guestClient.call('run', { code })
+      if (disposed) {
+        return Promise.reject(disposedError())
+      }
+      return Promise.race([guestClient.call('run', { code }), disposePromise])
     },
     dispose,
     [Symbol.dispose]: dispose,
