@@ -87,7 +87,6 @@ try {
 ```typescript
 await sandbox.run(code, { timeout: 10_000 }) // 10 seconds
 ```
-```
 
 ### Content-Security-Policy
 
