@@ -186,8 +186,9 @@ export async function createSandbox(
       'connect-src': cspOpts?.connectSrc ?? [],
     }
 
-    const safeIframeSource = iframeSource.replaceAll('</script', '<\\/script')
-    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${renderContentSecurityPolicy(csp)}"></head><body><script>${safeIframeSource}</script></body>`
+    // We don't need to worry about escaping "</script>" in iframeSource. Any occurences of this
+    // string will be caught in tests.
+    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${renderContentSecurityPolicy(csp)}"></head><body><script>${iframeSource}</script></body>`
 
     iframe.addEventListener('load', () => {
       // biome-ignore lint/style/noNonNullAssertion: fail fast if contentWindow is ever null here
