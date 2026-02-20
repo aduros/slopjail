@@ -23,6 +23,16 @@ describe('code execution', () => {
     expect(await sandbox.run('return true')).toBe(true)
   })
 
+  test('returns a bigint', async () => {
+    sandbox = await createSandbox()
+    expect(await sandbox.run('return 123n')).toEqual(123n)
+  })
+
+  test('returns a RegExp', async () => {
+    sandbox = await createSandbox()
+    expect(await sandbox.run('return /test/')).toEqual(/test/)
+  })
+
   test('returns null', async () => {
     sandbox = await createSandbox()
     expect(await sandbox.run('return null')).toBe(null)
@@ -84,6 +94,13 @@ describe('code execution', () => {
   test('propagates syntax errors', async () => {
     sandbox = await createSandbox()
     await expect(sandbox.run('return {{')).rejects.toThrow()
+  })
+
+  test('propagates serialization errors', async () => {
+    sandbox = await createSandbox()
+    await expect(
+      sandbox.run('return new URL("https://test.invalid")'),
+    ).rejects.toThrow('not be cloned')
   })
 })
 
@@ -189,6 +206,14 @@ describe('globals', () => {
   test('works with empty globals object', async () => {
     sandbox = await createSandbox({ globals: {} })
     expect(await sandbox.run('return 1 + 1')).toBe(2)
+  })
+
+  test('skips unserializable globals', async () => {
+    // Hmmm, not sure if this is correct
+    sandbox = await createSandbox({
+      globals: { url: new URL('https://test.invalid') },
+    })
+    expect(await sandbox.run('return url.href')).toBeUndefined()
   })
 })
 

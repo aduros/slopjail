@@ -54,6 +54,6 @@
     "url": "https://github.com/aduros/slopjail"
   },
   "dependencies": {
-    "shrimp-rpc": "^1.0.1"
+    "shrimp-rpc": "^2.0.0"
   }
 }
