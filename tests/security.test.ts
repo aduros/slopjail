@@ -449,8 +449,9 @@ describe('CSP injection resistance', () => {
   test('CSP with HTML special characters is safely escaped', async () => {
     // If escaping fails, the iframe would break or allow injected content
     sandbox = await createSandbox({
-      contentSecurityPolicy:
-        '"> <script>location.href = "about:blank"</script>',
+      contentSecurityPolicy: {
+        connectSrc: ['"> <script>location.href = "about:blank"</script>'],
+      },
     })
     // If we reach here, the iframe was created safely without injection
     expect(await sandbox.run('return 1')).toBe(1)

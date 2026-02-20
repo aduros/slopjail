@@ -3,8 +3,11 @@ import {
   createMessagePortServer,
   type Service,
 } from 'shrimp-rpc'
+import {
+  type ContentSecurityPolicy,
+  renderContentSecurityPolicy,
+} from './contentSecurityPolicy'
 import iframeSource from './iframe?bundled'
-import { escapeHtml } from './utils'
 import type { GuestService } from './worker'
 import workerSource from './worker?bundled'
 
@@ -38,11 +41,19 @@ export type CreateSandboxOptions = {
    * @example Allow fetch requests to the GitHub API:
    * ```typescript
    * const sandbox = await createSandbox({
-   *   contentSecurityPolicy: "connect-src https://api.github.com",
+   *   contentSecurityPolicy: {
+   *     connectSrc: ['https://api.github.com'],
+   *   },
    * })
    * ```
    */
-  contentSecurityPolicy?: string
+  contentSecurityPolicy?: {
+    /** Additional sources for the connect-src CSP directive. */
+    connectSrc?: string[]
+
+    /** Additional sources for the script-src CSP directive. */
+    scriptSrc?: string[]
+  }
 
   /**
    * An optional name for the sandbox to aid in debugging. Used as the iframe's and worker's name.
@@ -157,15 +168,26 @@ export async function createSandbox(
 
   const channel = new MessageChannel()
   const name = opts?.name ?? 'slopjail'
+  const cspOpts = opts?.contentSecurityPolicy
 
   const iframe = await new Promise<HTMLIFrameElement>((resolve, reject) => {
     const iframe = document.createElement('iframe')
     iframe.sandbox = 'allow-scripts'
     iframe.name = name
 
-    const fullContentSecurityPolicy = `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; worker-src data:; ${opts?.contentSecurityPolicy ?? ''}`
+    const csp: ContentSecurityPolicy = {
+      'default-src': ["'none'"],
+      'script-src': [
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        ...(cspOpts?.scriptSrc ?? []),
+      ],
+      'worker-src': ['data:'],
+      'connect-src': cspOpts?.connectSrc ?? [],
+    }
+
     const safeIframeSource = iframeSource.replaceAll('</script', '<\\/script')
-    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${escapeHtml(fullContentSecurityPolicy)}"></head><body><script>${safeIframeSource}</script></body>`
+    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${renderContentSecurityPolicy(csp)}"></head><body><script>${safeIframeSource}</script></body>`
 
     iframe.addEventListener('load', () => {
       // biome-ignore lint/style/noNonNullAssertion: fail fast if contentWindow is ever null here

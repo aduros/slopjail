@@ -96,8 +96,10 @@ Use the `contentSecurityPolicy` option to relax specific directives:
 
 ```typescript
 const sandbox = await createSandbox({
-  // Allow access to the GitHub API
-  contentSecurityPolicy: "connect-src https://api.github.com",
+  contentSecurityPolicy: {
+    // Allow access to the GitHub API
+    connectSrc: ['https://api.github.com'],
+  },
 })
 
 await sandbox.run(`
@@ -192,7 +194,7 @@ Create a new sandboxed execution environment.
 | Option | Type | Description |
 |---|---|---|
 | `globals` | `Record<string, unknown>` | Variables and functions to expose inside the sandbox. |
-| `contentSecurityPolicy` | `string` | Additional CSP directives appended to the default policy. |
+| `contentSecurityPolicy` | `object` | Additional CSP directives appended to the default policy. |
 | `name` | `string` | Name for debugging. |
 
 ### `Sandbox`

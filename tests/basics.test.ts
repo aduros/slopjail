@@ -299,7 +299,9 @@ describe('options', () => {
 
   test('custom CSP allows network access', async () => {
     sandbox = await createSandbox({
-      contentSecurityPolicy: 'connect-src https://httpbin.org',
+      contentSecurityPolicy: {
+        connectSrc: ['https://httpbin.org'],
+      },
     })
     const result = await sandbox.run(`
       const res = await fetch('https://httpbin.org/get')
