@@ -6,8 +6,8 @@ self.addEventListener('message', function onMessage(event) {
     self.removeEventListener('message', onMessage)
 
     const worker = new Worker(
-      `data:,${encodeURIComponent(event.data.workerSource)}`,
-      { name: event.data.name },
+      `data:text/javascript;charset=utf-8,${encodeURI(event.data.workerSource)}`,
+      { name: event.data.name, type: 'module' },
     )
 
     // Connect the bridge to both sides

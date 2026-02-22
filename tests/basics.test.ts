@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { createSandbox, type Sandbox } from '../src'
+import { expression } from './testUtils'
 
 let sandbox: Sandbox
 
@@ -10,42 +11,38 @@ afterEach(() => {
 describe('code execution', () => {
   test('returns a primitive value', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return 123')).toBe(123)
+    expect(await expression(sandbox, '123')).toBe(123)
   })
 
   test('returns a string', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return "hello"')).toBe('hello')
+    expect(await expression(sandbox, '"hello"')).toBe('hello')
+    expect(await expression(sandbox, '"emojis 🍕🍕🍕"')).toBe('emojis 🍕🍕🍕')
   })
 
   test('returns a boolean', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return true')).toBe(true)
+    expect(await expression(sandbox, 'true')).toBe(true)
   })
 
   test('returns a bigint', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return 123n')).toEqual(123n)
+    expect(await expression(sandbox, '123n')).toEqual(123n)
   })
 
   test('returns a RegExp', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return /test/')).toEqual(/test/)
+    expect(await expression(sandbox, '/test/')).toEqual(/test/)
   })
 
   test('returns null', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return null')).toBe(null)
-  })
-
-  test('returns undefined when no return statement', async () => {
-    sandbox = await createSandbox()
-    expect(await sandbox.run('1 + 1')).toBeUndefined()
+    expect(await expression(sandbox, 'null')).toBe(null)
   })
 
   test('returns an object', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return { a: 1, b: "two" }')).toEqual({
+    expect(await expression(sandbox, '{ a: 1, b: "two" }')).toEqual({
       a: 1,
       b: 'two',
     })
@@ -53,30 +50,28 @@ describe('code execution', () => {
 
   test('returns an array', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return [1, 2, 3]')).toEqual([1, 2, 3])
+    expect(await expression(sandbox, '[1, 2, 3]')).toEqual([1, 2, 3])
   })
 
   test('supports top-level await', async () => {
     sandbox = await createSandbox()
-    const result = await sandbox.run(`
-      const value = await Promise.resolve(42)
-      return value
-    `)
-    expect(result).toBe(42)
+    await expect(
+      expression(sandbox, 'await Promise.resolve(42)'),
+    ).resolves.toBe(42)
   })
 
   test('runs multiple executions sequentially', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return 1')).toBe(1)
-    expect(await sandbox.run('return 2')).toBe(2)
-    expect(await sandbox.run('return 3')).toBe(3)
+    expect(await expression(sandbox, '1')).toBe(1)
+    expect(await expression(sandbox, '2')).toBe(2)
+    expect(await expression(sandbox, '3')).toBe(3)
   })
 
   test('preserves global state across runs', async () => {
     sandbox = await createSandbox()
     await sandbox.run('globalThis.__counter = 1')
     await sandbox.run('globalThis.__counter += 1')
-    expect(await sandbox.run('return globalThis.__counter')).toBe(2)
+    expect(await expression(sandbox, 'globalThis.__counter')).toBe(2)
   })
 
   test('propagates synchronous errors', async () => {
@@ -93,14 +88,20 @@ describe('code execution', () => {
 
   test('propagates syntax errors', async () => {
     sandbox = await createSandbox()
-    await expect(sandbox.run('return {{')).rejects.toThrow()
+    await expect(sandbox.run('const x = {')).rejects.toThrow()
+    await expect(expression(sandbox, '}}')).rejects.toThrow()
   })
 
   test('propagates serialization errors', async () => {
     sandbox = await createSandbox()
     await expect(
-      sandbox.run('return new URL("https://test.invalid")'),
+      expression(sandbox, 'new URL("https://test.invalid")'),
     ).rejects.toThrow('not be cloned')
+  })
+
+  test('uses strict mode JS', async () => {
+    sandbox = await createSandbox()
+    await expect(expression(sandbox, 'notFound = 666')).rejects.toThrow()
   })
 })
 
@@ -114,10 +115,10 @@ describe('globals', () => {
         myNull: null,
       },
     })
-    expect(await sandbox.run('return myNumber')).toBe(42)
-    expect(await sandbox.run('return myString')).toBe('hello')
-    expect(await sandbox.run('return myBool')).toBe(true)
-    expect(await sandbox.run('return myNull')).toBe(null)
+    expect(await expression(sandbox, 'myNumber')).toBe(42)
+    expect(await expression(sandbox, 'myString')).toBe('hello')
+    expect(await expression(sandbox, 'myBool')).toBe(true)
+    expect(await expression(sandbox, 'myNull')).toBe(null)
   })
 
   test('exposes synchronous functions', async () => {
@@ -126,7 +127,7 @@ describe('globals', () => {
         add: (a: number, b: number) => a + b,
       },
     })
-    expect(await sandbox.run('return await add(2, 3)')).toBe(5)
+    expect(await expression(sandbox, 'await add(2, 3)')).toBe(5)
   })
 
   test('exposes async functions', async () => {
@@ -135,7 +136,7 @@ describe('globals', () => {
         fetchValue: async () => 'async-result',
       },
     })
-    expect(await sandbox.run('return await fetchValue()')).toBe('async-result')
+    expect(await expression(sandbox, 'await fetchValue()')).toBe('async-result')
   })
 
   test('exposes nested objects with functions', async () => {
@@ -147,8 +148,8 @@ describe('globals', () => {
         },
       },
     })
-    expect(await sandbox.run('return await math.add(2, 3)')).toBe(5)
-    expect(await sandbox.run('return await math.multiply(4, 5)')).toBe(20)
+    expect(await expression(sandbox, 'await math.add(2, 3)')).toBe(5)
+    expect(await expression(sandbox, 'await math.multiply(4, 5)')).toBe(20)
   })
 
   test('exposes nested objects with constants only', async () => {
@@ -160,8 +161,8 @@ describe('globals', () => {
         },
       },
     })
-    expect(await sandbox.run('return config.version')).toBe(1)
-    expect(await sandbox.run('return config.name')).toBe('test')
+    expect(await expression(sandbox, 'config.version')).toBe(1)
+    expect(await expression(sandbox, 'config.name')).toBe('test')
   })
 
   test('deeply nested objects', async () => {
@@ -176,13 +177,13 @@ describe('globals', () => {
         },
       },
     })
-    expect(await sandbox.run('return await a.b.c.getValue()')).toBe('deep')
+    expect(await expression(sandbox, 'await a.b.c.getValue()')).toBe('deep')
   })
 
   test('host functions receive correct arguments', async () => {
     const fn = vi.fn((...args: unknown[]) => args)
     sandbox = await createSandbox({ globals: { fn } })
-    const result = await sandbox.run('return await fn(1, "two", true, null)')
+    const result = await expression(sandbox, 'await fn(1, "two", true, null)')
     expect(result).toEqual([1, 'two', true, null])
     expect(fn).toHaveBeenCalledWith(1, 'two', true, null)
   })
@@ -195,17 +196,19 @@ describe('globals', () => {
         },
       },
     })
-    await expect(sandbox.run('return await fail()')).rejects.toThrow()
+    await expect(expression(sandbox, 'await fail()')).rejects.toThrow(
+      'host error',
+    )
   })
 
   test('works with no globals', async () => {
     sandbox = await createSandbox()
-    expect(await sandbox.run('return 1 + 1')).toBe(2)
+    expect(await expression(sandbox, '1 + 1')).toBe(2)
   })
 
   test('works with empty globals object', async () => {
     sandbox = await createSandbox({ globals: {} })
-    expect(await sandbox.run('return 1 + 1')).toBe(2)
+    expect(await expression(sandbox, '1 + 1')).toBe(2)
   })
 
   test('skips unserializable globals', async () => {
@@ -213,7 +216,7 @@ describe('globals', () => {
     sandbox = await createSandbox({
       globals: { url: new URL('https://test.invalid') },
     })
-    expect(await sandbox.run('return url.href')).toBeUndefined()
+    expect(await expression(sandbox, 'url.href')).toBeUndefined()
   })
 })
 
@@ -241,9 +244,7 @@ describe('lifecycle', () => {
   test('run after dispose rejects with an error', async () => {
     sandbox = await createSandbox()
     sandbox.dispose()
-    await expect(sandbox.run('return 1')).rejects.toThrow(
-      'Sandbox has been disposed',
-    )
+    await expect(sandbox.run('1')).rejects.toThrow('Sandbox has been disposed')
   })
 
   test('dispose during run rejects the pending promise', async () => {
@@ -266,7 +267,7 @@ describe('timeout', () => {
 
   test('does not reject when code finishes before the timeout', async () => {
     sandbox = await createSandbox()
-    const result = await sandbox.run('return 42', { timeout: 5000 })
+    const result = await expression(sandbox, '42', { timeout: 5000 })
     expect(result).toBe(42)
   })
 
@@ -303,11 +304,24 @@ describe('options', () => {
         connectSrc: ['https://httpbin.org'],
       },
     })
-    const result = await sandbox.run(`
-      const res = await fetch('https://httpbin.org/get')
-      return res.ok
+    await expect(
+      expression(sandbox, '(await fetch("https://httpbin.org/get")).ok'),
+    ).resolves.toBe(true)
+  })
+
+  test('custom CSP allows remote imports', async () => {
+    sandbox = await createSandbox({
+      contentSecurityPolicy: {
+        scriptSrc: ['https://esm.sh'],
+      },
+    })
+    await sandbox.run(`
+      import _ from "https://esm.sh/underscore"
+      globalThis.__result = _.uniq([1, 2, 1, 4, 1, 3]);
     `)
-    expect(result).toBe(true)
+    await expect(
+      sandbox.evaluate('globalThis.__result'),
+    ).resolves.toStrictEqual([1, 2, 4, 3])
   })
 })
 
@@ -319,8 +333,8 @@ describe('multiple sandboxes', () => {
     await sandbox1.run('globalThis.__value = "from-1"')
     await sandbox2.run('globalThis.__value = "from-2"')
 
-    expect(await sandbox1.run('return globalThis.__value')).toBe('from-1')
-    expect(await sandbox2.run('return globalThis.__value')).toBe('from-2')
+    expect(await sandbox1.evaluate('globalThis.__value')).toBe('from-1')
+    expect(await sandbox2.evaluate('globalThis.__value')).toBe('from-2')
 
     sandbox1.dispose()
     sandbox2.dispose()

@@ -48,10 +48,10 @@ export type CreateSandboxOptions = {
    * ```
    */
   contentSecurityPolicy?: {
-    /** Additional sources for the connect-src CSP directive. */
+    /** Additional sources for the `connect-src` CSP directive. */
     connectSrc?: string[]
 
-    /** Additional sources for the script-src CSP directive. */
+    /** Additional sources for the `script-src` CSP directive. */
     scriptSrc?: string[]
   }
 
@@ -62,9 +62,9 @@ export type CreateSandboxOptions = {
 }
 
 /**
- * Options for {@link Sandbox.run}.
+ * Options for {@link Sandbox.run} and {@link Sandbox.evaluate}.
  */
-export type RunOptions = {
+export type ExecutionOptions = {
   /**
    * Maximum time in milliseconds to wait for the code to finish. If the
    * timeout elapses, the returned promise rejects with a timeout error.
@@ -84,16 +84,21 @@ export type RunOptions = {
  */
 export type Sandbox = {
   /**
-   * Execute arbitrary JavaScript code inside the sandbox.
+   * Run arbitrary JavaScript code inside the sandbox.
    *
-   * The code string is compiled as an async function body, so top-level
-   * `await` is supported. All globals provided at creation time are available.
-   *
-   * @param code - JavaScript source code to execute.
+   * @param code - JavaScript source code to run.
    * @param options - Execution options.
-   * @returns The return value of the executed code.
    */
-  run(code: string, options?: RunOptions): Promise<unknown>
+  run(code: string, options?: ExecutionOptions): Promise<void>
+
+  /**
+   * Evaluate a single JavaScript expression inside the sandbox and return it.
+   *
+   * @param expr - JavaScript expression to evaluate.
+   * @param options - Execution options.
+   * @returns The value of the expression.
+   */
+  evaluate(expr: string, options?: ExecutionOptions): Promise<unknown>
 
   /**
    * Destroy the sandbox, terminating its worker and removing the backing
@@ -178,11 +183,11 @@ export async function createSandbox(
     const csp: ContentSecurityPolicy = {
       'default-src': ["'none'"],
       'script-src': [
+        'data:',
         "'unsafe-inline'",
         "'unsafe-eval'",
         ...(cspOpts?.scriptSrc ?? []),
       ],
-      'worker-src': ['data:'],
       'connect-src': cspOpts?.connectSrc ?? [],
     }
 
@@ -231,21 +236,29 @@ export async function createSandbox(
     iframe.remove()
   }
 
+  function callImpl<T>(
+    callPromise: Promise<T>,
+    execOpts: ExecutionOptions | undefined,
+  ): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('Execution timed out')),
+        execOpts?.timeout ?? 3000,
+      )
+    })
+    timeoutPromise.catch(() => {}) // prevent unhandled rejection
+    return Promise.race([callPromise, disposePromise, timeoutPromise]).finally(
+      () => clearTimeout(timer),
+    )
+  }
+
   return {
-    run(code, options) {
-      let timer: ReturnType<typeof setTimeout>
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error('Execution timed out')),
-          options?.timeout ?? 3000,
-        )
-      })
-      timeoutPromise.catch(() => {}) // prevent unhandled rejection
-      return Promise.race([
-        guestClient.call('run', { code }),
-        disposePromise,
-        timeoutPromise,
-      ]).finally(() => clearTimeout(timer))
+    run(code, execOpts) {
+      return callImpl(guestClient.call('run', { code }), execOpts)
+    },
+    evaluate(expr, execOpts) {
+      return callImpl(guestClient.call('evaluate', { expr }), execOpts)
     },
     dispose,
     [Symbol.dispose]: dispose,

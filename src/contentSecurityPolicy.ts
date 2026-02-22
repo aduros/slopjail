@@ -1,10 +1,6 @@
-export type Directive =
-  | 'default-src'
-  | 'script-src'
-  | 'worker-src'
-  | 'connect-src'
+export type Directive = 'default-src' | 'script-src' | 'connect-src'
 
-export type ContentSecurityPolicy = Partial<Record<Directive, string[]>>
+export type ContentSecurityPolicy = Record<Directive, string[]>
 
 function encodeSource(source: string) {
   // Percent encode certain problematic characters that can be used for injection
@@ -14,6 +10,7 @@ function encodeSource(source: string) {
   )
 }
 
+/** Renders a CSP object to a string. */
 export function renderContentSecurityPolicy(
   csp: ContentSecurityPolicy,
 ): string {

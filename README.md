@@ -90,9 +90,9 @@ await sandbox.run(code, { timeout: 10_000 }) // 10 seconds
 
 ### Content-Security-Policy
 
-By default, the sandbox blocks all network access and resource loading:
+By default, the sandbox blocks all network access.
 
-Use the `contentSecurityPolicy` option to relax specific directives:
+Use the `contentSecurityPolicy` option to relax specific CSP directives:
 
 ```typescript
 const sandbox = await createSandbox({
@@ -105,6 +105,22 @@ const sandbox = await createSandbox({
 await sandbox.run(`
   const res = await fetch('https://api.github.com/zen')
   console.log(await res.text())
+`)
+```
+
+You can allow ESM import statements by using `scriptSrc`:
+
+```typescript
+const sandbox = await createSandbox({
+  contentSecurityPolicy: {
+    // Allow importing ES modules from esm.sh
+    scriptSrc: ['https://esm.sh'],
+  },
+})
+
+await sandbox.run(`
+  import _ from 'https://esm.sh/underscore'
+  console.log(_.uniq([1, 2, 1, 4, 1, 3])) // [1, 2, 4, 3]
 `)
 ```
 
@@ -162,22 +178,21 @@ try {
 }
 ```
 
-### How do I read global variables back out of the sandbox?
+### How do I read state back out of the sandbox?
 
-`run()` returns the return value of the code, so you can use a `return` statement:
+You can either expose a global callback for sandboxed code to call, or use `evaluate()` to return the value of a JS expression:
 
 ```typescript
 const sandbox = await createSandbox({
+  // Globals are copied into the sandbox, references are not shared
   globals: { fruit: ['apple', 'banana'] },
 })
 
 try {
-  // First run some untrusted code that may modify the state
   await sandbox.run('fruit.push("cherry")')
 
-  // Then query the updated state
-  const updatedState = await sandbox.run('return fruit')
-  console.log(updatedState); // ['apple', 'banana', 'cherry']
+  const updatedFruit = await sandbox.evaluate('fruit')
+  console.log(updatedFruit); // ['apple', 'banana', 'cherry']
 } finally {
   sandbox.dispose()
 }
@@ -189,7 +204,7 @@ try {
 
 Create a new sandboxed execution environment.
 
-**Options:**
+**Creation options:**
 
 | Option | Type | Description |
 |---|---|---|
@@ -201,10 +216,11 @@ Create a new sandboxed execution environment.
 
 | Method | Description |
 |---|---|
-| `run(code: string, options?): Promise<unknown>` | Execute JavaScript inside the sandbox. Supports top-level `await`. Returns the return value of the executed code. |
+| `run(code: string, options?): Promise<void>` | Execute JavaScript inside the sandbox. |
+| `evaluate(expr: string, options?): Promise<unknown>` | Evaluate a single JavaScript expression inside the sandbox and return its value. |
 | `dispose(): void` | Terminate the worker and clean up all resources. |
 
-**Run options:**
+**Execution options:**
 
 | Option | Type | Description |
 |---|---|---|

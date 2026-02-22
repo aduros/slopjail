@@ -25,11 +25,12 @@ function bundled(): Plugin {
       const filePath = id.slice(0, -bundledSuffix.length)
       const result = await viteBuild({
         configFile: false,
+        plugins: [stripVitePreload()],
         build: {
           write: false,
           rollupOptions: {
             input: filePath,
-            output: { format: 'iife' },
+            output: { format: 'module' },
           },
         },
       })
@@ -37,6 +38,23 @@ function bundled(): Plugin {
         Array.isArray(result) ? result[0] : result
       ) as Rollup.RollupOutput
       return `export default ${JSON.stringify(bundle.output[0].code)}`
+    },
+  }
+}
+
+// Hack to strip Vite's import() glue code from pre-bundled scripts:
+// https://github.com/vitejs/vite/issues/19505#issuecomment-2683954298
+function stripVitePreload(): Plugin {
+  return {
+    name: 'stripVitePreload',
+    configResolved(config) {
+      const pI = config.plugins.findIndex(
+        (p) => p.name === 'vite:build-import-analysis',
+      )
+      ;(config.plugins as Plugin[]).splice(pI, 1)
+    },
+    renderChunk(code) {
+      return `const __VITE_IS_MODERN__=true;${code}`
     },
   }
 }

@@ -11,7 +11,9 @@ export type GuestService = Service<{
     methods: Record<string, unknown>
   }): void
 
-  run(params: { code: string }): unknown
+  run(params: { code: string }): void
+
+  evaluate(params: { expr: string }): unknown
 }>
 
 const hostClient = createWorkerClient<HostService>(self)
@@ -71,8 +73,12 @@ createWorkerServer<GuestService>(self, {
     }
   },
 
-  run({ code }) {
-    const fn = new AsyncFunction(code)
+  async run({ code }) {
+    await import(`data:text/javascript;charset=utf-8,${encodeURI(code)}`)
+  },
+
+  async evaluate({ expr }) {
+    const fn = new AsyncFunction(`"use strict";return(${expr})`)
     return fn()
   },
 })
