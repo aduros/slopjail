@@ -41,8 +41,8 @@
     "release": "bump --commit --tag --push",
     "start": "vite build --watch",
     "test": "vitest run",
-    "lint": "oxlint",
-    "format": "oxfmt"
+    "lint": "oxlint --disable-nested-config",
+    "format": "oxfmt --check"
   },
   "dependencies": {
     "shrimp-rpc": "^2.0.0"
