@@ -1,11 +1,13 @@
+output: false
+
 pre-commit:
   commands:
-    check:
-      run: npx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --error-on-warnings {staged_files}
+    lint:
+      run: npx oxlint --disable-nested-config --fix
+      stage_fixed: true
+    format:
+      run: npx oxfmt --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     test:
       glob: "*.{js,ts,jsx,tsx,mjs,mts}"
       run: npx vitest related --run --bail {staged_files}
-    types:
-      glob: "*.{js,ts,jsx,tsx,mjs,mts}"
-      run: npx tsc --noEmit

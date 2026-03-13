@@ -1,4 +1,4 @@
-declare module '*?bundled' {
-  const source: string
-  export default source
+declare module "*?bundled" {
+  const source: string;
+  export default source;
 }

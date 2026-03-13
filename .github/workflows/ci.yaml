@@ -12,10 +12,10 @@ jobs:
         script:
           - name: Unit tests
             command: npx playwright install --with-deps && npm test
-          - name: Typecheck
-            command: npm run test:types
           - name: Lint
-            command: npm run test:lint
+            command: npm run lint
+          - name: Format
+            command: npm run format
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

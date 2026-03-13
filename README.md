@@ -10,9 +10,9 @@
 - Simple API: `createSandbox()` → `run()` → `dispose()`.
 - Expose variables and functions for untrusted code to access.
 - Pretty good security:
-    * Code runs in a Web Worker on an opaque origin: no access to the host page's storage, cookies, or DOM.
-    * Network access is blocked by default using a strict [Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP).
-    * Disables APIs like `navigator` to resist device fingerprinting.
+  - Code runs in a Web Worker on an opaque origin: no access to the host page's storage, cookies, or DOM.
+  - Network access is blocked by default using a strict [Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP).
+  - Disables APIs like `navigator` to resist device fingerprinting.
 
 ## Quickstart
 
@@ -25,19 +25,19 @@ npm install slopjail
 Create a sandbox, run some code, and clean up:
 
 ```typescript
-import { createSandbox } from 'slopjail'
+import { createSandbox } from "slopjail";
 
 const sandbox = await createSandbox({
   globals: {
     twenty: 20,
     add: (a: number, b: number) => a + b,
   },
-})
+});
 
 try {
-  await sandbox.run('console.log(await add(twenty, 5))') // 25
+  await sandbox.run("console.log(await add(twenty, 5))"); // 25
 } finally {
-  sandbox.dispose()
+  sandbox.dispose();
 }
 ```
 
@@ -65,18 +65,18 @@ const sandbox = await createSandbox({
       add: (a: number, b: number) => a + b,
       multiply: (a: number, b: number) => a * b,
     },
-    version: '1.0.0',
+    version: "1.0.0",
   },
-})
+});
 
 try {
   await sandbox.run(`
     const sum = await math.add(2, 3)
     const product = await math.multiply(sum, 4)
     console.log(version, product) // "1.0.0" 20
-  `)
+  `);
 } finally {
-  sandbox.dispose()
+  sandbox.dispose();
 }
 ```
 
@@ -85,7 +85,7 @@ try {
 `run()` enforces a 3-second execution timeout by default. If the code doesn't finish in time, the returned promise rejects with an error. You can override it per call:
 
 ```typescript
-await sandbox.run(code, { timeout: 10_000 }) // 10 seconds
+await sandbox.run(code, { timeout: 10_000 }); // 10 seconds
 ```
 
 ### Content-Security-Policy
@@ -98,14 +98,14 @@ Use the `contentSecurityPolicy` option to relax specific CSP directives:
 const sandbox = await createSandbox({
   contentSecurityPolicy: {
     // Allow access to the GitHub API
-    connectSrc: ['https://api.github.com'],
+    connectSrc: ["https://api.github.com"],
   },
-})
+});
 
 await sandbox.run(`
   const res = await fetch('https://api.github.com/zen')
   console.log(await res.text())
-`)
+`);
 ```
 
 You can allow ESM import statements by using `scriptSrc`:
@@ -114,14 +114,14 @@ You can allow ESM import statements by using `scriptSrc`:
 const sandbox = await createSandbox({
   contentSecurityPolicy: {
     // Allow importing ES modules from esm.sh
-    scriptSrc: ['https://esm.sh'],
+    scriptSrc: ["https://esm.sh"],
   },
-})
+});
 
 await sandbox.run(`
   import _ from 'https://esm.sh/underscore'
   console.log(_.uniq([1, 2, 1, 4, 1, 3])) // [1, 2, 4, 3]
-`)
+`);
 ```
 
 ### Naming sandboxes
@@ -131,7 +131,7 @@ Give a sandbox a name for easier debugging:
 ```typescript
 const sandbox = await createSandbox({
   name: `ai-code-tool-${Date.now()}`,
-})
+});
 ```
 
 ### Automatic disposal
@@ -139,18 +139,18 @@ const sandbox = await createSandbox({
 `Sandbox` implements [`Symbol.dispose`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/using), so you can use `using` to automatically clean up when leaving scope:
 
 ```typescript
-using sandbox = await createSandbox()
-await sandbox.run(code)
+using sandbox = await createSandbox();
+await sandbox.run(code);
 ```
 
 Which is equivalent to:
 
 ```typescript
-const sandbox = await createSandbox()
+const sandbox = await createSandbox();
 try {
-  await sandbox.run(code)
+  await sandbox.run(code);
 } finally {
-  sandbox.dispose()
+  sandbox.dispose();
 }
 ```
 
@@ -165,16 +165,16 @@ const sandbox = await createSandbox({
   globals: {
     console: {
       log: (...args: unknown[]) => {
-        document.getElementById('output')!.textContent += args.join(' ') + '\n'
+        document.getElementById("output")!.textContent += args.join(" ") + "\n";
       },
     },
   },
-})
+});
 
 try {
-  await sandbox.run('console.log("hello from the sandbox!")')
+  await sandbox.run('console.log("hello from the sandbox!")');
 } finally {
-  sandbox.dispose()
+  sandbox.dispose();
 }
 ```
 
@@ -185,16 +185,16 @@ You can either expose a global callback for sandboxed code to call, or use `eval
 ```typescript
 const sandbox = await createSandbox({
   // Globals are copied into the sandbox, references are not shared
-  globals: { fruit: ['apple', 'banana'] },
-})
+  globals: { fruit: ["apple", "banana"] },
+});
 
 try {
-  await sandbox.run('fruit.push("cherry")')
+  await sandbox.run('fruit.push("cherry")');
 
-  const updatedFruit = await sandbox.evaluate('fruit')
+  const updatedFruit = await sandbox.evaluate("fruit");
   console.log(updatedFruit); // ['apple', 'banana', 'cherry']
 } finally {
-  sandbox.dispose()
+  sandbox.dispose();
 }
 ```
 
@@ -206,22 +206,22 @@ Create a new sandboxed execution environment.
 
 **Creation options:**
 
-| Option | Type | Description |
-|---|---|---|
-| `globals` | `Record<string, unknown>` | Variables and functions to expose inside the sandbox. |
-| `contentSecurityPolicy` | `object` | Additional CSP directives appended to the default policy. |
-| `name` | `string` | Name for debugging. |
+| Option                  | Type                      | Description                                               |
+| ----------------------- | ------------------------- | --------------------------------------------------------- |
+| `globals`               | `Record<string, unknown>` | Variables and functions to expose inside the sandbox.     |
+| `contentSecurityPolicy` | `object`                  | Additional CSP directives appended to the default policy. |
+| `name`                  | `string`                  | Name for debugging.                                       |
 
 ### `Sandbox`
 
-| Method | Description |
-|---|---|
-| `run(code: string, options?): Promise<void>` | Execute JavaScript inside the sandbox. |
+| Method                                               | Description                                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `run(code: string, options?): Promise<void>`         | Execute JavaScript inside the sandbox.                                           |
 | `evaluate(expr: string, options?): Promise<unknown>` | Evaluate a single JavaScript expression inside the sandbox and return its value. |
-| `dispose(): void` | Terminate the worker and clean up all resources. |
+| `dispose(): void`                                    | Terminate the worker and clean up all resources.                                 |
 
 **Execution options:**
 
-| Option | Type | Description |
-|---|---|---|
+| Option    | Type     | Description                                                                                     |
+| --------- | -------- | ----------------------------------------------------------------------------------------------- |
 | `timeout` | `number` | Maximum time in milliseconds to wait before rejecting with a timeout error. Defaults to `3000`. |

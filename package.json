@@ -1,6 +1,26 @@
 {
   "name": "slopjail",
   "version": "2.0.0",
+  "keywords": [
+    "browser",
+    "csp",
+    "iframe",
+    "isolation",
+    "jail",
+    "javascript-sandbox",
+    "sandbox",
+    "security",
+    "untrusted-code",
+    "web-worker"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aduros/slopjail"
+  },
+  "files": [
+    "./dist"
+  ],
+  "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -14,21 +34,6 @@
       "default": "./dist/index.cjs"
     }
   },
-  "keywords": [
-    "sandbox",
-    "jail",
-    "iframe",
-    "web-worker",
-    "security",
-    "isolation",
-    "untrusted-code",
-    "csp",
-    "javascript-sandbox",
-    "browser"
-  ],
-  "files": [
-    "./dist"
-  ],
   "scripts": {
     "prepare": "lefthook install",
     "build": "vite build",
@@ -36,24 +41,23 @@
     "release": "bump --commit --tag --push",
     "start": "vite build --watch",
     "test": "vitest run",
-    "test:lint": "biome check --diagnostic-level=error",
-    "test:types": "tsc --noEmit"
+    "lint": "oxlint",
+    "format": "oxfmt"
+  },
+  "dependencies": {
+    "shrimp-rpc": "^2.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
     "@vitest/browser-playwright": "^4.0.18",
     "lefthook": "^2.0.16",
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0",
+    "oxlint-tsgolint": "^0.16.0",
     "typescript": "^5.9.3",
     "version-bump-prompt": "^6.1.0",
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.18"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/aduros/slopjail"
-  },
-  "dependencies": {
-    "shrimp-rpc": "^2.0.0"
   }
 }

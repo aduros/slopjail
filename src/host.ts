@@ -1,19 +1,13 @@
-import {
-  createMessagePortClient,
-  createMessagePortServer,
-  type Service,
-} from 'shrimp-rpc'
-import {
-  type ContentSecurityPolicy,
-  renderContentSecurityPolicy,
-} from './contentSecurityPolicy'
-import iframeSource from './iframe?bundled'
-import type { GuestService } from './worker'
-import workerSource from './worker?bundled'
+import { createMessagePortClient, createMessagePortServer, type Service } from "shrimp-rpc";
+
+import { type ContentSecurityPolicy, renderContentSecurityPolicy } from "./contentSecurityPolicy";
+import iframeSource from "./iframe?bundled";
+import type { GuestService } from "./worker";
+import workerSource from "./worker?bundled";
 
 export type HostService = Service<{
-  onMethod(params: { methodId: number; params: unknown[] }): unknown
-}>
+  onMethod(params: { methodId: number; params: unknown[] }): unknown;
+}>;
 
 /**
  * Options for creating a sandboxed execution environment.
@@ -28,7 +22,7 @@ export type CreateSandboxOptions = {
    *   same way.
    * - **Primitive values** are passed through as-is.
    */
-  globals?: Record<string, unknown>
+  globals?: Record<string, unknown>;
 
   /**
    * Additional Content-Security-Policy directives appended to the default
@@ -49,17 +43,17 @@ export type CreateSandboxOptions = {
    */
   contentSecurityPolicy?: {
     /** Additional sources for the `connect-src` CSP directive. */
-    connectSrc?: string[]
+    connectSrc?: string[];
 
     /** Additional sources for the `script-src` CSP directive. */
-    scriptSrc?: string[]
-  }
+    scriptSrc?: string[];
+  };
 
   /**
    * An optional name for the sandbox to aid in debugging. Used as the iframe's and worker's name.
    */
-  name?: string
-}
+  name?: string;
+};
 
 /**
  * Options for {@link Sandbox.run} and {@link Sandbox.evaluate}.
@@ -71,8 +65,8 @@ export type ExecutionOptions = {
    *
    * Defaults to `3000` (3 seconds).
    */
-  timeout?: number
-}
+  timeout?: number;
+};
 
 /**
  * A sandboxed execution environment.
@@ -89,7 +83,7 @@ export type Sandbox = {
    * @param code - JavaScript source code to run.
    * @param options - Execution options.
    */
-  run(code: string, options?: ExecutionOptions): Promise<void>
+  run(code: string, options?: ExecutionOptions): Promise<void>;
 
   /**
    * Evaluate a single JavaScript expression inside the sandbox and return it.
@@ -98,16 +92,16 @@ export type Sandbox = {
    * @param options - Execution options.
    * @returns The value of the expression.
    */
-  evaluate(expr: string, options?: ExecutionOptions): Promise<unknown>
+  evaluate(expr: string, options?: ExecutionOptions): Promise<unknown>;
 
   /**
    * Destroy the sandbox, terminating its worker and removing the backing
    * iframe from the DOM.
    */
-  dispose(): void
+  dispose(): void;
 
-  [Symbol.dispose](): void
-}
+  [Symbol.dispose](): void;
+};
 
 /**
  * Create a new sandboxed execution environment.
@@ -131,136 +125,124 @@ export type Sandbox = {
  * await sandbox.run('console.log(await add(1, 2))')
  * ```
  */
-export async function createSandbox(
-  opts?: CreateSandboxOptions,
-): Promise<Sandbox> {
+export async function createSandbox(opts?: CreateSandboxOptions): Promise<Sandbox> {
   // biome-ignore lint/complexity/noBannedTypes: false positive
-  const methodsById: Array<Function> = []
+  const methodsById: Array<Function> = [];
 
   function extractMethods(source: Record<string, unknown>): {
-    constants: Record<string, unknown>
-    methods: Record<string, unknown>
+    constants: Record<string, unknown>;
+    methods: Record<string, unknown>;
   } {
-    const constants: Record<string, unknown> = {}
-    const methods: Record<string, unknown> = {}
+    const constants: Record<string, unknown> = {};
+    const methods: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(source)) {
       switch (typeof value) {
-        case 'function':
-          methods[key] = methodsById.length
-          methodsById.push(value)
-          break
-        case 'object': {
+        case "function":
+          methods[key] = methodsById.length;
+          methodsById.push(value);
+          break;
+        case "object": {
           if (value != null) {
-            const child = extractMethods(value as Record<string, unknown>)
-            constants[key] = child.constants
+            const child = extractMethods(value as Record<string, unknown>);
+            constants[key] = child.constants;
             if (Object.keys(child.methods).length > 0) {
-              methods[key] = child.methods
+              methods[key] = child.methods;
             }
           } else {
-            constants[key] = value
+            constants[key] = value;
           }
-          break
+          break;
         }
         default:
-          constants[key] = value
-          break
+          constants[key] = value;
+          break;
       }
     }
-    return { constants, methods }
+    return { constants, methods };
   }
 
-  const { constants, methods } = extractMethods(opts?.globals ?? {})
+  const { constants, methods } = extractMethods(opts?.globals ?? {});
 
-  const channel = new MessageChannel()
-  const name = opts?.name ?? 'slopjail'
-  const cspOpts = opts?.contentSecurityPolicy
+  const channel = new MessageChannel();
+  const name = opts?.name ?? "slopjail";
+  const cspOpts = opts?.contentSecurityPolicy;
 
   const iframe = await new Promise<HTMLIFrameElement>((resolve, reject) => {
-    const iframe = document.createElement('iframe')
-    iframe.sandbox = 'allow-scripts'
-    iframe.name = name
+    const iframe = document.createElement("iframe");
+    iframe.sandbox = "allow-scripts";
+    iframe.name = name;
 
     const csp: ContentSecurityPolicy = {
-      'default-src': ["'none'"],
-      'script-src': [
-        'data:',
-        "'unsafe-inline'",
-        "'unsafe-eval'",
-        ...(cspOpts?.scriptSrc ?? []),
-      ],
-      'connect-src': cspOpts?.connectSrc ?? [],
-    }
+      "default-src": ["'none'"],
+      "script-src": ["data:", "'unsafe-inline'", "'unsafe-eval'", ...(cspOpts?.scriptSrc ?? [])],
+      "connect-src": cspOpts?.connectSrc ?? [],
+    };
 
     // We don't need to worry about escaping "</script>" in iframeSource. Any occurences of this
     // string will be caught in tests.
-    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${renderContentSecurityPolicy(csp)}"></head><body><script>${iframeSource}</script></body>`
+    iframe.srcdoc = `<head><meta http-equiv="Content-Security-Policy" content="${renderContentSecurityPolicy(csp)}"></head><body><script>${iframeSource}</script></body>`;
 
-    iframe.addEventListener('load', () => {
+    iframe.addEventListener("load", () => {
       // biome-ignore lint/style/noNonNullAssertion: fail fast if contentWindow is ever null here
-      iframe.contentWindow!.postMessage(
-        { type: 'slopjail:init', name, workerSource },
-        '*',
-        [channel.port1],
-      )
-      resolve(iframe)
-    })
-    iframe.addEventListener('error', reject)
+      iframe.contentWindow!.postMessage({ type: "slopjail:init", name, workerSource }, "*", [
+        channel.port1,
+      ]);
+      resolve(iframe);
+    });
+    iframe.addEventListener("error", reject);
 
-    iframe.style.display = 'none'
-    document.body.appendChild(iframe)
-  })
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+  });
 
-  const port = channel.port2
-  port.start()
+  const port = channel.port2;
+  port.start();
 
   createMessagePortServer<HostService>(port, {
     onMethod({ methodId, params }) {
-      if (typeof methodId === 'number') {
-        return methodsById[methodId](...params)
+      if (typeof methodId === "number") {
+        return methodsById[methodId](...params);
       }
     },
-  })
+  });
 
-  const guestClient = createMessagePortClient<GuestService>(port)
-  await guestClient.call('setGlobals', { constants, methods })
+  const guestClient = createMessagePortClient<GuestService>(port);
+  await guestClient.call("setGlobals", { constants, methods });
 
-  let disposeReject: (err: Error) => void
+  let disposeReject: (err: Error) => void;
   const disposePromise = new Promise<never>((_, reject) => {
-    disposeReject = reject
-  })
-  disposePromise.catch(() => {}) // prevent unhandled rejection
+    disposeReject = reject;
+  });
+  disposePromise.catch(() => {}); // prevent unhandled rejection
 
   const dispose = () => {
-    disposeReject(new Error('Sandbox has been disposed'))
-    port.close()
-    iframe.remove()
-  }
+    disposeReject(new Error("Sandbox has been disposed"));
+    port.close();
+    iframe.remove();
+  };
 
   function callImpl<T>(
     callPromise: Promise<T>,
     execOpts: ExecutionOptions | undefined,
   ): Promise<T> {
-    let timer: ReturnType<typeof setTimeout>
+    let timer: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new Error('Execution timed out')),
-        execOpts?.timeout ?? 3000,
-      )
-    })
-    timeoutPromise.catch(() => {}) // prevent unhandled rejection
-    return Promise.race([callPromise, disposePromise, timeoutPromise]).finally(
-      () => clearTimeout(timer),
-    )
+      timer = setTimeout(() => reject(new Error("Execution timed out")), execOpts?.timeout ?? 3000);
+    });
+    timeoutPromise.catch(() => {}); // prevent unhandled rejection
+    return Promise.race([callPromise, disposePromise, timeoutPromise]).finally(() =>
+      clearTimeout(timer),
+    );
   }
 
   return {
     run(code, execOpts) {
-      return callImpl(guestClient.call('run', { code }), execOpts)
+      return callImpl(guestClient.call("run", { code }), execOpts);
     },
     evaluate(expr, execOpts) {
-      return callImpl(guestClient.call('evaluate', { expr }), execOpts)
+      return callImpl(guestClient.call("evaluate", { expr }), execOpts);
     },
     dispose,
     [Symbol.dispose]: dispose,
-  }
+  };
 }

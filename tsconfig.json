@@ -2,12 +2,12 @@
   "$schema": "https://www.schemastore.org/tsconfig",
   "compilerOptions": {
     "target": "esnext",
-    "module": "nodenext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "allowImportingTsExtensions": true,
     "types": ["vite/client"]
   },
   "exclude": ["./dist"]
