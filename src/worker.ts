@@ -73,7 +73,7 @@ createWorkerServer<GuestService>(self, {
   },
 
   async run({ code }) {
-    await import(`data:text/javascript;charset=utf-8,${encodeURI(code)}`);
+    await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(code)}`);
   },
 
   async evaluate({ expr }) {

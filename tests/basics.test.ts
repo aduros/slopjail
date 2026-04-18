@@ -89,6 +89,12 @@ describe("code execution", () => {
     await expect(expression(sandbox, "}}")).rejects.toThrow();
   });
 
+  test("handles URI-reserved characters in code", async () => {
+    sandbox = await createSandbox();
+    await sandbox.run('globalThis.__chars = "# ? & = + / @ : ; , $"');
+    expect(await sandbox.evaluate("globalThis.__chars")).toBe("# ? & = + / @ : ; , $");
+  });
+
   test("propagates serialization errors", async () => {
     sandbox = await createSandbox();
     await expect(expression(sandbox, 'new URL("https://test.invalid")')).rejects.toThrow(
