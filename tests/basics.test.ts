@@ -206,12 +206,257 @@ describe("globals", () => {
     expect(await expression(sandbox, "1 + 1")).toBe(2);
   });
 
-  test("skips unserializable globals", async () => {
-    // Hmmm, not sure if this is correct
-    sandbox = await createSandbox({
-      globals: { url: new URL("https://test.invalid") },
+  test("rejects unserializable globals", async () => {
+    await expect(createSandbox({ globals: { sym: Symbol("nope") } })).rejects.toThrow();
+  });
+});
+
+describe("global value types", () => {
+  describe("primitives", () => {
+    test("number (including Infinity, NaN, -0)", async () => {
+      sandbox = await createSandbox({
+        globals: { int: 42, float: 3.14, neg: -1, inf: Infinity, negInf: -Infinity, nan: NaN },
+      });
+      expect(await expression(sandbox, "int")).toBe(42);
+      expect(await expression(sandbox, "float")).toBe(3.14);
+      expect(await expression(sandbox, "neg")).toBe(-1);
+      expect(await expression(sandbox, "inf")).toBe(Infinity);
+      expect(await expression(sandbox, "negInf")).toBe(-Infinity);
+      expect(await expression(sandbox, "Number.isNaN(nan)")).toBe(true);
     });
-    expect(await expression(sandbox, "url.href")).toBeUndefined();
+
+    test("string", async () => {
+      sandbox = await createSandbox({
+        globals: { empty: "", hello: "hello", emoji: "🍕", unicode: "café" },
+      });
+      expect(await expression(sandbox, "empty")).toBe("");
+      expect(await expression(sandbox, "hello")).toBe("hello");
+      expect(await expression(sandbox, "emoji")).toBe("🍕");
+      expect(await expression(sandbox, "unicode")).toBe("café");
+    });
+
+    test("boolean", async () => {
+      sandbox = await createSandbox({ globals: { t: true, f: false } });
+      expect(await expression(sandbox, "t")).toBe(true);
+      expect(await expression(sandbox, "f")).toBe(false);
+    });
+
+    test("null", async () => {
+      sandbox = await createSandbox({ globals: { n: null } });
+      expect(await expression(sandbox, "n")).toBe(null);
+    });
+
+    test("undefined", async () => {
+      sandbox = await createSandbox({ globals: { u: undefined } });
+      expect(await expression(sandbox, "typeof u")).toBe("undefined");
+      expect(await expression(sandbox, "u")).toBeUndefined();
+    });
+
+    test("bigint", async () => {
+      sandbox = await createSandbox({
+        globals: { big: 123n, bigNeg: -999999999999999999n },
+      });
+      expect(await expression(sandbox, "big")).toEqual(123n);
+      expect(await expression(sandbox, "bigNeg")).toEqual(-999999999999999999n);
+    });
+  });
+
+  describe("objects", () => {
+    test("plain object", async () => {
+      sandbox = await createSandbox({
+        globals: { obj: { a: 1, b: "two", c: true, d: null } },
+      });
+      expect(await expression(sandbox, "obj")).toEqual({ a: 1, b: "two", c: true, d: null });
+    });
+
+    test("empty object", async () => {
+      sandbox = await createSandbox({ globals: { obj: {} } });
+      expect(await expression(sandbox, "obj")).toEqual({});
+    });
+
+    test("array of primitives", async () => {
+      sandbox = await createSandbox({ globals: { arr: [1, 2, 3] } });
+      expect(await expression(sandbox, "Array.isArray(arr)")).toBe(true);
+      expect(await expression(sandbox, "arr")).toEqual([1, 2, 3]);
+      expect(await expression(sandbox, "arr.length")).toBe(3);
+    });
+
+    test("empty array", async () => {
+      sandbox = await createSandbox({ globals: { arr: [] } });
+      expect(await expression(sandbox, "Array.isArray(arr)")).toBe(true);
+      expect(await expression(sandbox, "arr")).toEqual([]);
+    });
+
+    test("array of mixed primitives", async () => {
+      sandbox = await createSandbox({
+        globals: { arr: [1, "two", true, null] },
+      });
+      expect(await expression(sandbox, "arr")).toEqual([1, "two", true, null]);
+    });
+
+    test("array of objects", async () => {
+      sandbox = await createSandbox({
+        globals: { arr: [{ a: 1 }, { b: 2 }] },
+      });
+      expect(await expression(sandbox, "arr")).toEqual([{ a: 1 }, { b: 2 }]);
+    });
+
+    test("nested arrays", async () => {
+      sandbox = await createSandbox({
+        globals: {
+          arr: [
+            [1, 2],
+            [3, 4],
+          ],
+        },
+      });
+      expect(await expression(sandbox, "arr")).toEqual([
+        [1, 2],
+        [3, 4],
+      ]);
+      expect(await expression(sandbox, "Array.isArray(arr[0])")).toBe(true);
+    });
+
+    test("object containing arrays", async () => {
+      sandbox = await createSandbox({
+        globals: { obj: { fruits: ["apple", "banana"], ints: [1, 2, 3] } },
+      });
+      expect(await expression(sandbox, "Array.isArray(obj.fruits)")).toBe(true);
+      expect(await expression(sandbox, "obj.fruits")).toEqual(["apple", "banana"]);
+      expect(await expression(sandbox, "obj.ints")).toEqual([1, 2, 3]);
+    });
+
+    test("README mutable array example", async () => {
+      sandbox = await createSandbox({
+        globals: { fruit: ["apple", "banana"] },
+      });
+      await sandbox.run('fruit.push("cherry")');
+      expect(await sandbox.evaluate("fruit")).toEqual(["apple", "banana", "cherry"]);
+    });
+
+    test("Date", async () => {
+      const date = new Date("2024-01-01T00:00:00Z");
+      sandbox = await createSandbox({ globals: { d: date } });
+      expect(await expression(sandbox, "d instanceof Date")).toBe(true);
+      expect(await expression(sandbox, "d.getTime()")).toBe(date.getTime());
+      expect(await expression(sandbox, "d.toISOString()")).toBe(date.toISOString());
+    });
+
+    test("RegExp", async () => {
+      sandbox = await createSandbox({ globals: { re: /foo/i } });
+      expect(await expression(sandbox, "re instanceof RegExp")).toBe(true);
+      expect(await expression(sandbox, "re.source")).toBe("foo");
+      expect(await expression(sandbox, "re.flags")).toBe("i");
+      expect(await expression(sandbox, 're.test("FOO")')).toBe(true);
+      expect(await expression(sandbox, 're.test("bar")')).toBe(false);
+    });
+
+    test("Map", async () => {
+      sandbox = await createSandbox({
+        globals: {
+          m: new Map<string, unknown>([
+            ["a", 1],
+            ["b", "two"],
+          ]),
+        },
+      });
+      expect(await expression(sandbox, "m instanceof Map")).toBe(true);
+      expect(await expression(sandbox, "m.size")).toBe(2);
+      expect(await expression(sandbox, 'm.get("a")')).toBe(1);
+      expect(await expression(sandbox, 'm.get("b")')).toBe("two");
+    });
+
+    test("Set", async () => {
+      sandbox = await createSandbox({
+        globals: { s: new Set([1, 2, 3]) },
+      });
+      expect(await expression(sandbox, "s instanceof Set")).toBe(true);
+      expect(await expression(sandbox, "s.size")).toBe(3);
+      expect(await expression(sandbox, "s.has(2)")).toBe(true);
+      expect(await expression(sandbox, "s.has(99)")).toBe(false);
+    });
+
+    test("ArrayBuffer", async () => {
+      const buf = new Uint8Array([1, 2, 3, 4]).buffer;
+      sandbox = await createSandbox({ globals: { buf } });
+      expect(await expression(sandbox, "buf instanceof ArrayBuffer")).toBe(true);
+      expect(await expression(sandbox, "buf.byteLength")).toBe(4);
+      expect(await expression(sandbox, "new Uint8Array(buf)[2]")).toBe(3);
+    });
+
+    test("Uint8Array", async () => {
+      sandbox = await createSandbox({
+        globals: { arr: new Uint8Array([10, 20, 30]) },
+      });
+      expect(await expression(sandbox, "arr instanceof Uint8Array")).toBe(true);
+      expect(await expression(sandbox, "arr.length")).toBe(3);
+      expect(await expression(sandbox, "arr[1]")).toBe(20);
+    });
+
+    test("Int32Array", async () => {
+      sandbox = await createSandbox({
+        globals: { arr: new Int32Array([-1, 0, 1]) },
+      });
+      expect(await expression(sandbox, "arr instanceof Int32Array")).toBe(true);
+      expect(await expression(sandbox, "arr[0]")).toBe(-1);
+      expect(await expression(sandbox, "arr.length")).toBe(3);
+    });
+  });
+
+  describe("mixed", () => {
+    test("plain object containing an array and a function", async () => {
+      sandbox = await createSandbox({
+        globals: {
+          mod: {
+            items: ["a", "b", "c"],
+            getItem: (i: number) => ["a", "b", "c"][i],
+          },
+        },
+      });
+      expect(await expression(sandbox, "Array.isArray(mod.items)")).toBe(true);
+      expect(await expression(sandbox, "mod.items")).toEqual(["a", "b", "c"]);
+      expect(await expression(sandbox, "await mod.getItem(1)")).toBe("b");
+    });
+
+    test("plain object with every primitive type", async () => {
+      sandbox = await createSandbox({
+        globals: {
+          all: {
+            num: 1,
+            str: "s",
+            bool: true,
+            nil: null,
+            undef: undefined,
+            big: 10n,
+          },
+        },
+      });
+      expect(await expression(sandbox, "all.num")).toBe(1);
+      expect(await expression(sandbox, "all.str")).toBe("s");
+      expect(await expression(sandbox, "all.bool")).toBe(true);
+      expect(await expression(sandbox, "all.nil")).toBe(null);
+      expect(await expression(sandbox, "typeof all.undef")).toBe("undefined");
+      expect(await expression(sandbox, "all.big")).toEqual(10n);
+    });
+
+    test("deeply nested mix of arrays, objects, and functions", async () => {
+      sandbox = await createSandbox({
+        globals: {
+          root: {
+            list: [1, 2, 3],
+            child: {
+              tags: ["x", "y"],
+              count: () => 99,
+            },
+          },
+        },
+      });
+      expect(await expression(sandbox, "root.list")).toEqual([1, 2, 3]);
+      expect(await expression(sandbox, "Array.isArray(root.list)")).toBe(true);
+      expect(await expression(sandbox, "root.child.tags")).toEqual(["x", "y"]);
+      expect(await expression(sandbox, "Array.isArray(root.child.tags)")).toBe(true);
+      expect(await expression(sandbox, "await root.child.count()")).toBe(99);
+    });
   });
 });
 

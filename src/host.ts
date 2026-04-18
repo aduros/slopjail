@@ -9,6 +9,11 @@ export type HostService = Service<{
   onMethod(params: { methodId: number; params: unknown[] }): unknown;
 }>;
 
+function isPlainObject(value: object): boolean {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
  * Options for creating a sandboxed execution environment.
  */
@@ -142,13 +147,17 @@ export async function createSandbox(opts?: CreateSandboxOptions): Promise<Sandbo
           methodsById.push(value);
           break;
         case "object": {
-          if (value != null) {
+          if (value === null) {
+            constants[key] = null;
+          } else if (isPlainObject(value)) {
             const child = extractMethods(value as Record<string, unknown>);
             constants[key] = child.constants;
             if (Object.keys(child.methods).length > 0) {
               methods[key] = child.methods;
             }
           } else {
+            // Arrays, Date, Map, Set, RegExp, TypedArrays, etc. are passed
+            // through; structured clone preserves their type across the port.
             constants[key] = value;
           }
           break;
@@ -206,9 +215,6 @@ export async function createSandbox(opts?: CreateSandboxOptions): Promise<Sandbo
     },
   });
 
-  const guestClient = createMessagePortClient<GuestService>(port);
-  await guestClient.call("setGlobals", { constants, methods });
-
   let disposeReject: (err: Error) => void;
   const disposePromise = new Promise<never>((_, reject) => {
     disposeReject = reject;
@@ -220,6 +226,14 @@ export async function createSandbox(opts?: CreateSandboxOptions): Promise<Sandbo
     port.close();
     iframe.remove();
   };
+
+  const guestClient = createMessagePortClient<GuestService>(port);
+  try {
+    await guestClient.call("setGlobals", { constants, methods });
+  } catch (err) {
+    dispose();
+    throw err;
+  }
 
   function callImpl<T>(
     callPromise: Promise<T>,

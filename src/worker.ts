@@ -49,8 +49,13 @@ createWorkerServer<GuestService>(self, {
       for (const [key, value] of Object.entries(methods)) {
         if (typeof value === "object") {
           if (value) {
-            const child = {};
-            dest[key] = child;
+            // Merge into the existing constants subtree so sibling constants
+            // at the same path aren't overwritten.
+            let child = dest[key] as Record<string, unknown> | undefined;
+            if (typeof child !== "object" || child === null) {
+              child = {};
+              dest[key] = child;
+            }
             injectMethods(value as Record<string, unknown>, child);
           }
         } else if (typeof value === "number") {
