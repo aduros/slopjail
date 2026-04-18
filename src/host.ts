@@ -144,7 +144,7 @@ export async function createSandbox(opts?: CreateSandboxOptions): Promise<Sandbo
       switch (typeof value) {
         case "function":
           methods[key] = methodsById.length;
-          methodsById.push(value);
+          methodsById.push(value.bind(source));
           break;
         case "object": {
           if (value === null) {

@@ -209,6 +209,53 @@ describe("globals", () => {
   test("rejects unserializable globals", async () => {
     await expect(createSandbox({ globals: { sym: Symbol("nope") } })).rejects.toThrow();
   });
+
+  test("method `this` binds to its parent object", async () => {
+    const counter = {
+      n: 0,
+      inc() {
+        return ++this.n;
+      },
+    };
+    sandbox = await createSandbox({ globals: { counter } });
+    expect(await sandbox.evaluate("counter.inc()")).toBe(1);
+    expect(await sandbox.evaluate("counter.inc()")).toBe(2);
+    expect(counter.n).toBe(2);
+  });
+
+  test("nested method `this` binds to its immediate parent", async () => {
+    const inner = {
+      label: "hi",
+      greet() {
+        return this.label;
+      },
+    };
+    sandbox = await createSandbox({ globals: { outer: { inner } } });
+    expect(await expression(sandbox, "await outer.inner.greet()")).toBe("hi");
+  });
+
+  test("sibling methods share the same `this`", async () => {
+    const store = {
+      value: 10,
+      get() {
+        return this.value;
+      },
+      set(v: number) {
+        this.value = v;
+      },
+    };
+    sandbox = await createSandbox({ globals: { store } });
+    expect(await sandbox.evaluate("store.get()")).toBe(10);
+    await sandbox.run("await store.set(99)");
+    expect(await sandbox.evaluate("store.get()")).toBe(99);
+  });
+
+  test("top-level functions still work without `this`", async () => {
+    sandbox = await createSandbox({
+      globals: { add: (a: number, b: number) => a + b },
+    });
+    expect(await expression(sandbox, "await add(2, 3)")).toBe(5);
+  });
 });
 
 describe("global value types", () => {
